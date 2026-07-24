@@ -41,6 +41,8 @@
             top: 0;
             z-index: 10;
             backdrop-filter: blur(8px);
+            gap: 0.75rem;
+            flex-wrap: wrap;
         }
 
         h1 {
@@ -94,6 +96,17 @@
             border-color: #a1a1aa;
         }
 
+        .btn-small {
+            padding: 0.4rem 0.7rem;
+            font-size: 0.8rem;
+        }
+
+        .btn[disabled] {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         input[type="file"] {
             display: none;
         }
@@ -106,6 +119,27 @@
             max-width: 1280px;
             width: 100%;
             margin: 0 auto;
+        }
+
+        .status-bar {
+            padding: 0.75rem 1rem;
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            font-size: 0.86rem;
+            color: var(--muted-color);
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .status-bar.is-error {
+            color: #b91c1c;
+            border-color: #fecaca;
+            background-color: #fef2f2;
         }
 
         .viewer-container {
@@ -145,6 +179,7 @@
             flex: 1;
             border: none;
             min-height: 600px;
+            background: #e5e7eb;
         }
 
         .file-info {
@@ -160,16 +195,19 @@
             flex-wrap: wrap;
         }
 
-        .pdf-download-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 700;
-            cursor: pointer;
+        .file-info .file-name {
+            font-weight: 600;
+            color: var(--text-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        .pdf-download-link:hover {
-            color: var(--primary-hover);
-            text-decoration: underline;
+        .empty-state {
+            padding: 3rem 1.5rem;
+            text-align: center;
+            color: var(--muted-color);
+            grid-column: 1 / -1;
         }
 
         footer {
@@ -184,27 +222,27 @@
 <body>
 
     <header>
-        <h1>PDF 미리보기 & 다운로드</h1>
+        <h1>PDF 미리보기 &amp; 다운로드</h1>
         <div class="controls">
+            <!-- 목록 새로고침 -->
+            <button id="refreshBtn" class="btn btn-outline" type="button">
+                새로고침
+            </button>
+
             <!-- 컴퓨터에서 파일 변경하기 -->
             <label for="fileInput" class="btn btn-outline">
-                다른 PDF 선택
+                내 컴퓨터에서 PDF 열기
             </label>
-            <input type="file" id="fileInput" accept="application/pdf">
-
-            <!-- 다운로드 버튼 -->
-            <button id="downloadBtn" class="btn btn-primary">
-                PDF 다운로드
-            </button>
+            <input type="file" id="fileInput" accept="application/pdf" multiple>
         </div>
     </header>
 
     <main>
+        <div id="statusBar" class="status-bar">
+            <span id="fileNameDisplay">docs 폴더의 PDF를 찾는 중...</span>
+            <span>GitHub Pages Viewer</span>
+        </div>
         <div class="viewer-container">
-            <div class="file-info">
-                <span id="fileNameDisplay">현재 파일: docs 폴더의 PDF를 찾는 중...</span>
-                <span>GitHub Pages Viewer</span>
-            </div>
             <div id="viewerGrid" class="viewer-grid"></div>
         </div>
     </main>
@@ -215,17 +253,55 @@
 
     <script>
         const fileInput = document.getElementById('fileInput');
-        const downloadBtn = document.getElementById('downloadBtn');
         const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const statusBar = document.getElementById('statusBar');
         const viewerGrid = document.getElementById('viewerGrid');
+        const refreshBtn = document.getElementById('refreshBtn');
 
+        // ⚠️ 이 저장소/폴더 이름이 실제 GitHub 저장소와 다르면 아래 값을 수정하세요.
         const repoOwner = 'Podo3356';
         const repoName = 'Podo3356.github.io';
         const docsFolder = 'docs';
         const defaultPdfUrl = 'document.pdf';
 
-        let currentPdfUrl = defaultPdfUrl;
-        let currentPdfName = 'document.pdf';
+        function setStatus(message, isError = false) {
+            fileNameDisplay.textContent = message;
+            statusBar.classList.toggle('is-error', isError);
+        }
+
+        // 파일명 안의 특수문자를 안전하게 다운로드 파일명으로 사용하기 위한 헬퍼
+        function sanitizeFileName(name) {
+            return name.endsWith('.pdf') ? name : `${name}.pdf`;
+        }
+
+        // 실제 다운로드 처리: 가능하면 fetch로 받아 blob으로 강제 다운로드,
+        // CORS 등으로 실패하면 새 탭에서 열어 사용자가 직접 저장하도록 폴백 처리
+        async function downloadPdf(url, name, button) {
+            const originalLabel = button.textContent;
+            button.disabled = true;
+            button.textContent = '다운로드 중...';
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('네트워크 응답 오류');
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = sanitizeFileName(name);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                console.warn('블롭 다운로드 실패, 새 탭으로 열기:', error);
+                window.open(url, '_blank', 'noopener');
+            } finally {
+                button.disabled = false;
+                button.textContent = originalLabel;
+            }
+        }
 
         function createPdfCard(pdf) {
             const card = document.createElement('article');
@@ -235,9 +311,18 @@
             info.className = 'file-info';
 
             const nameLabel = document.createElement('span');
-            nameLabel.textContent = '현재 파일: ' + pdf.name;
+            nameLabel.className = 'file-name';
+            nameLabel.textContent = pdf.name;
+            nameLabel.title = pdf.name;
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.type = 'button';
+            downloadBtn.className = 'btn btn-primary btn-small';
+            downloadBtn.textContent = '다운로드';
+            downloadBtn.addEventListener('click', () => downloadPdf(pdf.url, pdf.name, downloadBtn));
 
             info.appendChild(nameLabel);
+            info.appendChild(downloadBtn);
 
             const iframe = document.createElement('iframe');
             iframe.title = pdf.name;
@@ -253,29 +338,38 @@
         function renderPdfCards(pdfList) {
             viewerGrid.innerHTML = '';
 
-            if (!pdfList.length) {
-                pdfList = [{ name: 'document.pdf', url: defaultPdfUrl }];
+            if (!pdfList || !pdfList.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'docs 폴더에서 PDF 파일을 찾을 수 없습니다.';
+                viewerGrid.appendChild(empty);
+                setStatus('표시할 PDF가 없습니다.', true);
+                return;
             }
 
             pdfList.forEach((pdf) => {
                 viewerGrid.appendChild(createPdfCard(pdf));
             });
 
-            const firstPdf = pdfList[0];
-            currentPdfUrl = firstPdf.url;
-            currentPdfName = firstPdf.name;
-            fileNameDisplay.textContent = '현재 파일: ' + firstPdf.name;
+            setStatus(`총 ${pdfList.length}개의 PDF를 불러왔습니다.`, false);
         }
 
         async function loadPdfListFromDocs() {
+            setStatus('docs 폴더의 PDF를 찾는 중...');
             try {
-                const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${docsFolder}`;
+                const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${encodeURIComponent(docsFolder)}`;
                 const response = await fetch(apiUrl, {
                     headers: {
                         'Accept': 'application/vnd.github+json'
                     }
                 });
 
+                if (response.status === 403) {
+                    throw new Error('GitHub API 요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.');
+                }
+                if (response.status === 404) {
+                    throw new Error(`"${docsFolder}" 폴더를 찾을 수 없습니다. 저장소/폴더 이름을 확인해 주세요.`);
+                }
                 if (!response.ok) {
                     throw new Error('docs 폴더 조회 실패');
                 }
@@ -291,31 +385,33 @@
                         .sort((a, b) => a.name.localeCompare(b.name))
                     : [];
 
+                if (!pdfs.length) {
+                    // API는 성공했지만 PDF가 없는 경우, 기본 파일이라도 시도해본다.
+                    renderPdfCards([{ name: 'document.pdf', url: defaultPdfUrl }]);
+                    return;
+                }
+
                 renderPdfCards(pdfs);
             } catch (error) {
                 console.warn('docs pdf 자동 탐색 실패:', error);
+                setStatus(error.message || 'PDF 목록을 불러오지 못했습니다. 기본 파일을 표시합니다.', true);
                 renderPdfCards([{ name: 'document.pdf', url: defaultPdfUrl }]);
             }
         }
 
-        // 다운로드 버튼 클릭 이벤트
-        downloadBtn.addEventListener('click', function() {
-            const a = document.createElement('a');
-            a.href = currentPdfUrl;
-            a.download = currentPdfName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        });
+        refreshBtn.addEventListener('click', loadPdfListFromDocs);
 
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file && file.type === 'application/pdf') {
-                const fileURL = URL.createObjectURL(file);
-                renderPdfCards([{ name: file.name, url: fileURL }]);
-            } else if (file) {
+        fileInput.addEventListener('change', function (e) {
+            const files = Array.from(e.target.files || []).filter((f) => f.type === 'application/pdf');
+            if (!files.length) {
                 alert('PDF 파일만 선택이 가능합니다.');
+                return;
             }
+            const localPdfs = files.map((file) => ({
+                name: file.name,
+                url: URL.createObjectURL(file)
+            }));
+            renderPdfCards(localPdfs);
         });
 
         loadPdfListFromDocs();
