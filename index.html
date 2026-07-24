@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF View & Download</title>
+    <style>
+        :root {
+            --primary-color: #111827;
+            --primary-hover: #000000;
+            --bg-color: #f5f5f4;
+            --card-bg: #ffffff;
+            --text-color: #111827;
+            --border-color: #d6d3d1;
+            --muted-color: #6b7280;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(180deg, #f8f8f7 0%, #f3f4f6 100%);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: rgba(255, 255, 255, 0.94);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: blur(8px);
+        }
+
+        h1 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.62rem 1rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            text-decoration: none;
+            border: 1px solid transparent;
+            line-height: 1;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .btn-outline:hover {
+            background-color: #f3f4f6;
+            border-color: #a1a1aa;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        main {
+            flex: 1;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            max-width: 1280px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .viewer-container {
+            flex: 1;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 70vh;
+        }
+
+        .viewer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+            background: #f8f8f7;
+        }
+
+        .viewer-card {
+            background-color: var(--card-bg);
+            border: 1px solid #111827;
+            border-radius: 0.85rem;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 480px;
+        }
+
+        .viewer-card iframe {
+            width: 100%;
+            height: 100%;
+            flex: 1;
+            border: none;
+            min-height: 420px;
+        }
+
+        .file-info {
+            padding: 0.75rem 1rem;
+            background-color: #ffffff;
+            border-bottom: 1px solid #111827;
+            font-size: 0.86rem;
+            color: var(--muted-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .pdf-download-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .pdf-download-link:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        footer {
+            text-align: center;
+            padding: 0.9rem 1rem 1.25rem;
+            font-size: 0.8rem;
+            color: #6b7280;
+            letter-spacing: 0.02em;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>PDF 미리보기 & 다운로드</h1>
+        <div class="controls">
+            <!-- 컴퓨터에서 파일 변경하기 -->
+            <label for="fileInput" class="btn btn-outline">
+                다른 PDF 선택
+            </label>
+            <input type="file" id="fileInput" accept="application/pdf">
+
+            <!-- 다운로드 버튼 -->
+            <a id="downloadBtn" href="document.pdf" download="document.pdf" class="btn btn-primary">
+                PDF 다운로드
+            </a>
+        </div>
+    </header>
+
+    <main>
+        <div class="viewer-container">
+            <div class="file-info">
+                <span id="fileNameDisplay">현재 파일: docs 폴더의 PDF를 찾는 중...</span>
+                <span>GitHub Pages Viewer</span>
+            </div>
+            <div id="viewerGrid" class="viewer-grid"></div>
+        </div>
+    </main>
+
+    <footer>
+        Hosted on GitHub Pages
+    </footer>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const viewerGrid = document.getElementById('viewerGrid');
+
+        const repoOwner = 'Podo3356';
+        const repoName = 'Podo3356.github.io';
+        const docsFolder = 'docs';
+        const defaultPdfUrl = 'document.pdf';
+
+        function createPdfCard(pdf) {
+            const card = document.createElement('article');
+            card.className = 'viewer-card';
+
+            const info = document.createElement('div');
+            info.className = 'file-info';
+
+            const nameLabel = document.createElement('span');
+            nameLabel.textContent = '현재 파일: ' + pdf.name;
+
+            const downloadLink = document.createElement('a');
+            downloadLink.className = 'pdf-download-link';
+            downloadLink.href = pdf.url;
+            downloadLink.download = pdf.name;
+            downloadLink.textContent = '다운로드';
+
+            info.appendChild(nameLabel);
+            info.appendChild(downloadLink);
+
+            const iframe = document.createElement('iframe');
+            iframe.title = pdf.name;
+            iframe.src = pdf.url;
+            iframe.loading = 'lazy';
+
+            card.appendChild(info);
+            card.appendChild(iframe);
+
+            return card;
+        }
+
+        function renderPdfCards(pdfList) {
+            viewerGrid.innerHTML = '';
+
+            if (!pdfList.length) {
+                pdfList = [{ name: 'document.pdf', url: defaultPdfUrl }];
+            }
+
+            pdfList.forEach((pdf) => {
+                viewerGrid.appendChild(createPdfCard(pdf));
+            });
+
+            const firstPdf = pdfList[0];
+            downloadBtn.href = firstPdf.url;
+            downloadBtn.download = firstPdf.name;
+            fileNameDisplay.textContent = '현재 파일: ' + firstPdf.name;
+        }
+
+        async function loadPdfListFromDocs() {
+            try {
+                const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${docsFolder}`;
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'Accept': 'application/vnd.github+json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('docs 폴더 조회 실패');
+                }
+
+                const items = await response.json();
+                const pdfs = Array.isArray(items)
+                    ? items
+                        .filter((item) => item.type === 'file' && item.name.toLowerCase().endsWith('.pdf'))
+                        .map((item) => ({
+                            name: item.name,
+                            url: item.download_url || `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${item.path}`
+                        }))
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                    : [];
+
+                renderPdfCards(pdfs);
+            } catch (error) {
+                console.warn('docs pdf 자동 탐색 실패:', error);
+                renderPdfCards([{ name: 'document.pdf', url: defaultPdfUrl }]);
+            }
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                const fileURL = URL.createObjectURL(file);
+                renderPdfCards([{ name: file.name, url: fileURL }]);
+            } else if (file) {
+                alert('PDF 파일만 선택이 가능합니다.');
+            }
+        });
+
+        loadPdfListFromDocs();
+    </script>
+</body>
+</html>
