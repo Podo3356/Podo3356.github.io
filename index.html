@@ -125,6 +125,8 @@
             gap: 1rem;
             padding: 1rem;
             background: #f8f8f7;
+            flex: 1;
+            overflow-y: auto;
         }
 
         .viewer-card {
@@ -134,7 +136,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            min-height: 480px;
+            height: 100%;
         }
 
         .viewer-card iframe {
@@ -142,7 +144,7 @@
             height: 100%;
             flex: 1;
             border: none;
-            min-height: 420px;
+            min-height: 600px;
         }
 
         .file-info {
@@ -162,6 +164,7 @@
             color: var(--primary-color);
             text-decoration: none;
             font-weight: 700;
+            cursor: pointer;
         }
 
         .pdf-download-link:hover {
@@ -190,9 +193,9 @@
             <input type="file" id="fileInput" accept="application/pdf">
 
             <!-- 다운로드 버튼 -->
-            <a id="downloadBtn" href="document.pdf" download="document.pdf" class="btn btn-primary">
+            <button id="downloadBtn" class="btn btn-primary">
                 PDF 다운로드
-            </a>
+            </button>
         </div>
     </header>
 
@@ -221,6 +224,9 @@
         const docsFolder = 'docs';
         const defaultPdfUrl = 'document.pdf';
 
+        let currentPdfUrl = defaultPdfUrl;
+        let currentPdfName = 'document.pdf';
+
         function createPdfCard(pdf) {
             const card = document.createElement('article');
             card.className = 'viewer-card';
@@ -231,14 +237,7 @@
             const nameLabel = document.createElement('span');
             nameLabel.textContent = '현재 파일: ' + pdf.name;
 
-            const downloadLink = document.createElement('a');
-            downloadLink.className = 'pdf-download-link';
-            downloadLink.href = pdf.url;
-            downloadLink.download = pdf.name;
-            downloadLink.textContent = '다운로드';
-
             info.appendChild(nameLabel);
-            info.appendChild(downloadLink);
 
             const iframe = document.createElement('iframe');
             iframe.title = pdf.name;
@@ -263,8 +262,8 @@
             });
 
             const firstPdf = pdfList[0];
-            downloadBtn.href = firstPdf.url;
-            downloadBtn.download = firstPdf.name;
+            currentPdfUrl = firstPdf.url;
+            currentPdfName = firstPdf.name;
             fileNameDisplay.textContent = '현재 파일: ' + firstPdf.name;
         }
 
@@ -298,6 +297,16 @@
                 renderPdfCards([{ name: 'document.pdf', url: defaultPdfUrl }]);
             }
         }
+
+        // 다운로드 버튼 클릭 이벤트
+        downloadBtn.addEventListener('click', function() {
+            const a = document.createElement('a');
+            a.href = currentPdfUrl;
+            a.download = currentPdfName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
 
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
